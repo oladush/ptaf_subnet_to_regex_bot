@@ -1,4 +1,4 @@
-"""
+r"""
   _____ _______       ______                                       _        _       _
  |  __ \__   __|/\   |  ____|                                     | |      | |     | |
  | |__) | | |  /  \  | |__     _ __ ___  __ _  _____  ___ __   ___| |_ __ _| |_ ___| |
@@ -10,6 +10,7 @@
 """
 
 import os
+import time
 import dotenv
 import logging
 import telebot
@@ -22,12 +23,23 @@ logging.basicConfig(
     level=logging.INFO
 )
 
-dotenv.load_dotenv()
-TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
-
-bot = telebot.TeleBot(TOKEN)
 logger = logging.getLogger(__name__)
 
+if not os.path.exists('.env'):
+    with open('.env', 'w') as f:
+        f.write('TELEGRAM_BOT_TOKEN=YOUR_TOKEN_HERE\n')
+        f.write('RESTART_TIMEOUT=5\n')
+
+    logger.info("Created .env file with template. Please fill it with your data!")
+    logger.info(f"nano/vim/vi {os.path.abspath('.env')}")
+    exit(1)
+
+dotenv.load_dotenv()
+
+TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
+RESTART_TIMEOUT = int(os.getenv('RESTART_TIMEOUT', 5))
+
+bot = telebot.TeleBot(TOKEN)
 
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
@@ -52,5 +64,14 @@ def convert_to_regex(message):
 
 if __name__ == '__main__':
     logger.info("Bot started...")
-    bot.polling(none_stop=True)
+
+    while True:
+        try:
+            bot.polling(none_stop=True, skip_pending=True)
+        except ConnectionResetError as e:
+            logger.error(f"Connection error: {e}. Reconnecting in {RESTART_TIMEOUT} seconds...")
+            time.sleep(RESTART_TIMEOUT)
+        except Exception as e:
+            logger.error(f"Unexpected error: {e}. Restarting in {RESTART_TIMEOUT} seconds...")
+            time.sleep(RESTART_TIMEOUT)
 
